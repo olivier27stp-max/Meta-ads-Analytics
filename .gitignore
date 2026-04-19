@@ -1,0 +1,15 @@
+node_modules
+.next
+.data
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Editor
+.vscode
+.idea

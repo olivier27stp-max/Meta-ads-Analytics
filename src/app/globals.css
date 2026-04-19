@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 20% 99%;
+    --foreground: 222 24% 11%;
+    --surface: 0 0% 100%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 221 39% 20%;
+
+    --primary: 222 47% 11%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --accent: 220 14% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --success: 148 38% 38%;
+    --success-foreground: 148 32% 20%;
+    --success-soft: 148 52% 95%;
+
+    --warning: 38 60% 42%;
+    --warning-foreground: 34 40% 24%;
+    --warning-soft: 42 82% 94%;
+
+    --danger: 356 54% 50%;
+    --danger-foreground: 356 40% 24%;
+    --danger-soft: 354 76% 96%;
+
+    --info: 216 62% 45%;
+    --info-soft: 214 90% 96%;
+
+    --radius: 0.85rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    position: relative;
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(ellipse 1000px 500px at 4% -6%, hsl(220 92% 84% / 0.42), transparent 62%),
+      radial-gradient(ellipse 900px 450px at 96% -2%, hsl(285 82% 88% / 0.34), transparent 62%),
+      radial-gradient(ellipse 800px 500px at 52% 115%, hsl(178 72% 85% / 0.26), transparent 68%),
+      linear-gradient(to right, hsl(var(--foreground) / 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--foreground) / 0.035) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+    background-attachment: fixed, fixed, fixed, fixed, fixed;
+  }
+
+  /* Soft fade of the grid toward the edges so it feels like atmosphere,
+     not a blueprint. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(
+      ellipse 65% 55% at 50% 35%,
+      transparent 0%,
+      hsl(var(--background) / 0.35) 100%
+    );
+  }
+
+  body > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.12);
+    color: hsl(var(--primary));
+  }
+
+  /* Numeric tabular figures for metrics */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .card-surface {
+    @apply rounded-2xl border border-border bg-surface shadow-card;
+  }
+
+  .hairline {
+    @apply border-border/80;
+  }
+
+  .metric-number {
+    @apply text-2xl font-semibold tracking-tight text-foreground tabular;
+  }
+
+  .section-title {
+    @apply text-base font-semibold tracking-tight text-foreground;
+  }
+
+  .muted-label {
+    @apply text-xs font-medium uppercase tracking-wide text-muted-foreground;
+  }
+
+  .soft-divider {
+    @apply border-t border-border/80;
+  }
+
+  .scroll-shadow {
+    background:
+      linear-gradient(to right, hsl(var(--surface)) 30%, hsl(var(--surface) / 0)) 0 0,
+      linear-gradient(to right, hsl(var(--surface) / 0), hsl(var(--surface)) 70%) 100% 0;
+    background-repeat: no-repeat;
+    background-size: 40px 100%, 40px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden bg-muted/70;
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--muted) / 0) 0%,
+      hsl(var(--surface) / 0.7) 50%,
+      hsl(var(--muted) / 0) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+}
+
+/* Table refinement */
+table.data-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+table.data-table thead th {
+  @apply sticky top-0 z-10 bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80;
+}
