@@ -23,6 +23,7 @@ import type {
   ViewMode,
 } from "@/types";
 import type { SyncedCreative } from "@/lib/meta-sync";
+import { mergeSyncedCreatives } from "@/lib/sync-merge";
 import {
   defaultSettings,
   seedAccounts,
@@ -156,134 +157,7 @@ function delay(ms: number) {
 
 const BASE_STORE_KEY = "mca-store-v1";
 
-/**
- * Merge a list of Meta-synced creatives into an existing list, deduplicating
- * on `ad_id`. For each incoming ad:
- *   - If it already exists (same accountId + adId), refresh metrics + status
- *     fields but PRESERVE the existing AI analysis record and our internal
- *     id. This is what makes the sync incremental and non-destructive.
- *   - If it's new, append with a fresh `pending` AI record so it surfaces
- *     in the Creatives list and can be analyzed.
- * Returns the new creatives list + per-category counts for UI feedback.
- */
-function mergeSyncedCreatives(params: {
-  existing: Creative[];
-  incoming: SyncedCreative[];
-  accountId: string;
-  metaAccountId: string;
-  syncedAtIso: string;
-}): { creatives: Creative[]; added: number; updated: number; unchanged: number } {
-  const { existing, incoming, accountId, metaAccountId, syncedAtIso } = params;
-
-  // Index existing creatives for this account by adId — everything else is
-  // passed through unchanged.
-  const otherAccounts = existing.filter((c) => c.accountId !== accountId);
-  const ownIndex = new Map<string, Creative>();
-  for (const c of existing) {
-    if (c.accountId === accountId) ownIndex.set(c.adId, c);
-  }
-
-  let added = 0;
-  let updated = 0;
-  let unchanged = 0;
-  const merged: Creative[] = [];
-
-  for (const s of incoming) {
-    const prior = ownIndex.get(s.adId);
-    if (prior) {
-      // Existing ad — refresh metrics + names + status, keep AI + id.
-      const metricsChanged =
-        prior.metrics.spend !== s.metrics.spend ||
-        prior.metrics.impressions !== s.metrics.impressions ||
-        prior.metrics.clicks !== s.metrics.clicks ||
-        prior.metrics.purchases !== s.metrics.purchases;
-      merged.push({
-        ...prior,
-        name: s.name,
-        campaignId: s.campaignId,
-        campaignName: s.campaignName || prior.campaignName,
-        adSetId: s.adSetId,
-        adSetName: s.adSetName || prior.adSetName,
-        mediaType: s.mediaType,
-        previewUrl: s.previewUrl || prior.previewUrl,
-        effectiveStatus: s.effectiveStatus,
-        activeStatus:
-          s.effectiveStatus === "ACTIVE"
-            ? "active"
-            : s.effectiveStatus === "PAUSED"
-              ? "paused"
-              : "archived",
-        hadDelivery: s.hadDelivery,
-        metrics: s.metrics,
-        updatedAt: syncedAtIso,
-        lastSyncedAt: syncedAtIso,
-      });
-      ownIndex.delete(s.adId);
-      if (metricsChanged) updated++;
-      else unchanged++;
-    } else {
-      // New ad — create with a pending AI record so the user can click
-      // Re-analyze (or let the batch handler pick it up).
-      const id = `cr_${metaAccountId.slice(-6)}_${s.adId}`;
-      added++;
-      merged.push({
-        id,
-        accountId,
-        adId: s.adId,
-        campaignId: s.campaignId,
-        campaignName: s.campaignName,
-        adSetId: s.adSetId,
-        adSetName: s.adSetName,
-        name: s.name,
-        mediaType: s.mediaType,
-        previewUrl: s.previewUrl,
-        thumbnailColor: "#1e293b",
-        hadDelivery: s.hadDelivery,
-        activeStatus:
-          s.effectiveStatus === "ACTIVE"
-            ? "active"
-            : s.effectiveStatus === "PAUSED"
-              ? "paused"
-              : "archived",
-        effectiveStatus: s.effectiveStatus,
-        createdAt: s.createdTime,
-        updatedAt: syncedAtIso,
-        lastSyncedAt: syncedAtIso,
-        metrics: s.metrics,
-        ai: {
-          id: `${id}_ai`,
-          creativeId: id,
-          status: "pending",
-          assetType: "UGC",
-          visualFormat: "Lifestyle",
-          messagingAngle: "Value Proposition",
-          hookTactic: "Direct Benefit",
-          offerType: "No Offer",
-          funnelStage: "TOF",
-          summary:
-            "Pending AI analysis — click Re-analyze (or use Analyze all) to have Gemini review this creative.",
-          strengths: [],
-          areasToImprove: [],
-          recommendedIterations: [],
-          analyzedAt: null,
-        },
-      });
-    }
-  }
-
-  // Anything left in ownIndex existed before but did NOT come back from Meta.
-  // We keep them (so AI analysis isn't lost) but their status isn't refreshed.
-  for (const orphan of ownIndex.values()) {
-    merged.push(orphan);
-  }
-
-  return {
-    creatives: [...otherAccounts, ...merged],
-    added,
-    updated,
-    unchanged,
-  };
-}
+// mergeSyncedCreatives lives in src/lib/sync-merge.ts (shared with /api/cron).
 
 /**
  * Hydration from Supabase is triggered once the user is known (from the

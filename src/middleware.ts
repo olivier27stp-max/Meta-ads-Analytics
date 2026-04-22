@@ -6,11 +6,12 @@ const PUBLIC_PATHS = new Set(["/login", "/register"]);
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Always allow: auth API + public integration endpoints + Next assets.
+  // Always allow: auth API + public integration endpoints + cron + Next assets.
   if (
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/leads") ||
-    pathname.startsWith("/api/webhooks")
+    pathname.startsWith("/api/webhooks") ||
+    pathname.startsWith("/api/cron")
   ) {
     return NextResponse.next();
   }

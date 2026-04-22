@@ -1,0 +1,31 @@
+name: Meta Sync (hourly)
+
+# Calls /api/cron/sync-all on the deployed app once per hour.
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   APP_URL       e.g. https://meta-ads.yourdomain.com
+#   CRON_SECRET   same value as CRON_SECRET in the app's .env.local
+
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch: # allows manual runs from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Hit sync endpoint
+        run: |
+          set -euo pipefail
+          : "${APP_URL:?APP_URL secret not set}"
+          : "${CRON_SECRET:?CRON_SECRET secret not set}"
+          echo "Hitting ${APP_URL}/api/cron/sync-all"
+          RESP=$(curl --fail --show-error --silent \
+            -X POST "${APP_URL}/api/cron/sync-all" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -w "\nHTTP_STATUS:%{http_code}")
+          echo "$RESP"
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
