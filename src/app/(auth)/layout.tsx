@@ -10,16 +10,16 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </div>
           <div className="flex flex-col leading-tight">
             <span className="text-[14px] font-semibold tracking-tight">
-              Meta Ads Creative Analytics
+              Entiore Sales Dashboard
             </span>
             <span className="text-[11px] text-muted-foreground">
-              Workspace · Creative Intelligence
+              Creative intelligence · Attribution · Calendar
             </span>
           </div>
         </div>
         {children}
         <p className="mt-8 text-center text-[11px] text-muted-foreground">
-          Premium internal tool for paid social teams.
+          Internal tool for paid social + SaaS sales teams.
         </p>
       </div>
     </div>

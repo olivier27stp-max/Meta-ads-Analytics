@@ -33,16 +33,16 @@ export function UserMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="inline-flex items-center gap-2 rounded-full border border-border bg-surface pl-1 pr-2 text-[12px] font-medium transition-colors hover:bg-muted/60 focus-ring">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-foreground/5 text-[10px] font-semibold">
+      <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-lg border border-border bg-surface px-2 py-1.5 text-[12px] font-medium transition-colors hover:bg-muted/60 focus-ring">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground/5 text-[10px] font-semibold">
           {initials(user.displayName, user.email)}
         </span>
-        <span className="hidden max-w-[120px] truncate text-foreground md:inline">
+        <span className="min-w-0 flex-1 truncate text-left text-foreground">
           {user.displayName}
         </span>
-        <ChevronDown className="h-3 w-3 text-muted-foreground" />
+        <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60">
+      <DropdownMenuContent align="start" side="top" className="w-56">
         <DropdownMenuLabel>Signed in as</DropdownMenuLabel>
         <div className="px-2 pb-2">
           <div className="truncate text-[13px] font-medium">{user.displayName}</div>

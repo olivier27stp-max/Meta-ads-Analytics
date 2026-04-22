@@ -1,8 +1,8 @@
 {
-  "name": "meta-ads-creative-analytics",
+  "name": "entiore-sales-dashboard",
   "version": "0.1.0",
   "private": true,
-  "description": "Meta Ads creative intelligence — AI-based classification, performance review, and Scale/Watch/Kill recommendations.",
+  "description": "Entiore Sales Dashboard — Meta Ads creative intelligence, AI coaching, attribution, and calendar for SaaS sales teams.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
