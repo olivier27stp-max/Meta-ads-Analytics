@@ -3,6 +3,7 @@ import { ControlBar } from "@/components/layout/ControlBar";
 import { GlobalKpiStrip } from "@/components/kpi/GlobalKpiStrip";
 import { AccountsTable } from "@/components/accounts/AccountsTable";
 import { AddAccountDialog } from "@/components/accounts/AddAccountDialog";
+import { SyncResultBanner } from "@/components/accounts/SyncResultBanner";
 
 export default function AccountsPage() {
   return (
@@ -14,6 +15,7 @@ export default function AccountsPage() {
       />
       <ControlBar />
       <GlobalKpiStrip />
+      <SyncResultBanner />
       <AccountsTable />
     </div>
   );

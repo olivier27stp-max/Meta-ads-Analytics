@@ -168,17 +168,21 @@ export interface RecommendedIteration {
 export interface Creative {
   id: string;
   accountId: string;
+  adId: string; // Meta ad_id — canonical dedup key (accountId + adId is unique)
+  campaignId: string | null;
   campaignName: string;
+  adSetId: string | null;
   adSetName: string;
-  adId: string;
   name: string;
   mediaType: MediaType;
   previewUrl: string;
   thumbnailColor: string;
   hadDelivery: boolean;
   activeStatus: "active" | "paused" | "archived";
-  createdAt: string;
+  effectiveStatus: string | null; // Meta effective_status when live-synced
+  createdAt: string; // maps to Meta created_time
   updatedAt: string;
+  lastSyncedAt: string | null;
   metrics: CreativeMetrics;
   ai: AIAnalysis;
 }
@@ -332,3 +336,17 @@ export type GroupByKey =
   | "adType";
 
 export type ViewMode = "table" | "grid";
+
+export interface SyncSummary {
+  mode: "live" | "demo" | "error";
+  accountId: string;
+  metaAccountId: string;
+  added: number;
+  updated: number;
+  unchanged: number;
+  total: number; // total ads returned by Meta for this account
+  message: string;
+  errorCode?: string;
+  errorDetail?: string;
+  syncedAt: string;
+}
