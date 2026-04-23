@@ -8,6 +8,10 @@ import {
   DollarSign,
   TrendingUp,
   Target,
+  Flame,
+  Trophy,
+  Clock3,
+  XCircle,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -26,30 +30,99 @@ import {
   updateLeadStage,
   displayName,
   leadSource,
-  PIPELINE_STAGES,
-  STAGE_LABEL,
-  ACTIVE_STAGES,
   type LeadRow,
 } from "@/lib/leads-client";
 import { formatMoney, formatRelative } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { LeadStage } from "@/types";
 
-// Lane order + lane-specific tone
-const LANES: Array<{
-  stage: LeadStage;
-  tone: "muted" | "info" | "warning" | "success" | "danger";
-  bg: string;
-  border: string;
-}> = [
-  { stage: "lead", tone: "muted", bg: "bg-muted/30", border: "border-border" },
-  { stage: "mql", tone: "info", bg: "bg-info-soft/40", border: "border-info/20" },
-  { stage: "demo_booked", tone: "info", bg: "bg-info-soft/40", border: "border-info/20" },
-  { stage: "demo_attended", tone: "info", bg: "bg-info-soft/40", border: "border-info/20" },
-  { stage: "proposal", tone: "warning", bg: "bg-warning-soft/40", border: "border-warning/20" },
-  { stage: "closed_won", tone: "success", bg: "bg-success-soft/40", border: "border-success/20" },
-  { stage: "closed_lost", tone: "danger", bg: "bg-danger-soft/40", border: "border-danger/20" },
+/**
+ * Four-column pipeline. Each column groups one or more of the underlying
+ * LeadStage values stored in Postgres so the UI stays simple while the data
+ * model stays flexible.
+ *
+ * Move-to buckets write the column's primary stage — which in turn fires
+ * the CAPI event mapped for that stage in Settings.
+ */
+interface Column {
+  id: string;
+  label: string;
+  icon: React.ElementType;
+  stages: LeadStage[];
+  primary: LeadStage; // stage written when moving into this column
+  accent: {
+    bg: string;
+    border: string;
+    text: string;
+    dot: string;
+  };
+}
+
+const COLUMNS: Column[] = [
+  {
+    id: "new_leads",
+    label: "New Leads",
+    icon: Flame,
+    stages: ["lead", "mql"],
+    primary: "lead",
+    accent: {
+      bg: "bg-muted/30",
+      border: "border-border",
+      text: "text-foreground",
+      dot: "bg-muted-foreground/60",
+    },
+  },
+  {
+    id: "deal_lost",
+    label: "Deal Lost",
+    icon: XCircle,
+    stages: ["closed_lost"],
+    primary: "closed_lost",
+    accent: {
+      bg: "bg-danger-soft/50",
+      border: "border-danger/25",
+      text: "text-danger",
+      dot: "bg-danger",
+    },
+  },
+  {
+    id: "follow_up",
+    label: "Follow up",
+    icon: Clock3,
+    stages: ["demo_booked", "demo_attended", "proposal"],
+    primary: "demo_booked",
+    accent: {
+      bg: "bg-warning-soft/50",
+      border: "border-warning/25",
+      text: "text-warning",
+      dot: "bg-warning",
+    },
+  },
+  {
+    id: "deal_won",
+    label: "Deal Won",
+    icon: Trophy,
+    stages: ["closed_won"],
+    primary: "closed_won",
+    accent: {
+      bg: "bg-success-soft/50",
+      border: "border-success/25",
+      text: "text-success",
+      dot: "bg-success",
+    },
+  },
 ];
+
+// Map every LeadStage → its column index
+const STAGE_TO_COL: Record<LeadStage, string> = {
+  lead: "new_leads",
+  mql: "new_leads",
+  demo_booked: "follow_up",
+  demo_attended: "follow_up",
+  proposal: "follow_up",
+  closed_won: "deal_won",
+  closed_lost: "deal_lost",
+};
 
 export default function PipelinePage() {
   const [leads, setLeads] = React.useState<LeadRow[]>([]);
@@ -66,42 +139,47 @@ export default function PipelinePage() {
     void refresh();
   }, [refresh]);
 
-  const byStage = React.useMemo(() => {
-    const m = new Map<LeadStage, LeadRow[]>();
-    for (const s of PIPELINE_STAGES) m.set(s, []);
-    for (const l of leads) m.get(l.stage)?.push(l);
+  const byColumn = React.useMemo(() => {
+    const m = new Map<string, LeadRow[]>();
+    for (const c of COLUMNS) m.set(c.id, []);
+    for (const lead of leads) {
+      const colId = STAGE_TO_COL[lead.stage];
+      m.get(colId)?.push(lead);
+    }
     return m;
   }, [leads]);
 
-  const move = async (id: string, to: LeadStage) => {
-    setMovingId(id);
+  const move = async (leadId: string, targetColId: string) => {
+    const col = COLUMNS.find((c) => c.id === targetColId);
+    if (!col) return;
+    const target = col.primary;
+    setMovingId(leadId);
     // Optimistic
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage: to } : l)));
-    const res = await updateLeadStage(id, to);
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage: target } : l)));
+    const res = await updateLeadStage(leadId, target);
     setMovingId(null);
-    if (!res.ok) {
-      // Rollback
-      await refresh();
-    }
+    if (!res.ok) await refresh();
   };
 
-  const activeLeads = leads.filter((l) =>
-    (ACTIVE_STAGES as string[]).includes(l.stage),
+  const inPipeline =
+    (byColumn.get("new_leads")?.length ?? 0) + (byColumn.get("follow_up")?.length ?? 0);
+  const pipelineValue = leads
+    .filter((l) => STAGE_TO_COL[l.stage] === "new_leads" || STAGE_TO_COL[l.stage] === "follow_up")
+    .reduce((a, l) => a + (l.value ?? 0), 0);
+  const won = byColumn.get("deal_won")?.length ?? 0;
+  const wonValue = (byColumn.get("deal_won") ?? []).reduce(
+    (a, l) => a + (l.value ?? 0),
+    0,
   );
-  const activeCount = activeLeads.length;
-  const activeValue = activeLeads.reduce((a, l) => a + (l.value ?? 0), 0);
-  const wonLeads = leads.filter((l) => l.stage === "closed_won");
-  const wonValue = wonLeads.reduce((a, l) => a + (l.value ?? 0), 0);
-  const resolved = leads.filter(
-    (l) => l.stage === "closed_won" || l.stage === "closed_lost",
-  ).length;
-  const winRate = resolved > 0 ? wonLeads.length / resolved : 0;
+  const lost = byColumn.get("deal_lost")?.length ?? 0;
+  const resolved = won + lost;
+  const winRate = resolved > 0 ? won / resolved : 0;
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Pipeline"
-        description="Kanban view of your sales funnel. Move a card to trigger Meta CAPI event for attribution."
+        description="Board in 4 columns. Move a card to write the canonical stage + fire Meta CAPI for attribution."
         actions={
           <Button variant="secondary" size="md" onClick={refresh} disabled={loading}>
             <RefreshCw className={loading ? "animate-spin" : ""} />
@@ -113,26 +191,26 @@ export default function PipelinePage() {
       <KpiStrip>
         <KpiCard
           label="In pipeline"
-          value={activeCount.toString()}
-          hint={activeCount > 0 ? `${formatMoney(activeValue)} forecast` : "Empty"}
+          value={inPipeline.toString()}
+          hint={inPipeline > 0 ? `${formatMoney(pipelineValue)} forecast` : "Empty"}
           icon={<Target className="h-3.5 w-3.5" />}
         />
         <KpiCard
-          label="Closed-won"
-          value={wonLeads.length.toString()}
-          hint={wonLeads.length > 0 ? formatMoney(wonValue) : "—"}
-          icon={<DollarSign className="h-3.5 w-3.5" />}
+          label="Deal Won"
+          value={won.toString()}
+          hint={won > 0 ? formatMoney(wonValue) : "—"}
+          icon={<Trophy className="h-3.5 w-3.5" />}
         />
         <KpiCard
           label="Win rate"
           value={resolved > 0 ? `${(winRate * 100).toFixed(1)}%` : "—"}
-          hint={resolved > 0 ? `${wonLeads.length}/${resolved} resolved` : "No resolved"}
+          hint={resolved > 0 ? `${won}/${resolved} resolved` : "No resolved"}
           icon={<TrendingUp className="h-3.5 w-3.5" />}
         />
         <KpiCard
           label="Total leads"
           value={leads.length.toString()}
-          hint="Across all stages"
+          hint={`Across all ${COLUMNS.length} columns`}
           icon={<GitBranch className="h-3.5 w-3.5" />}
         />
       </KpiStrip>
@@ -148,52 +226,23 @@ export default function PipelinePage() {
           </div>
           <h3 className="mt-3 text-sm font-semibold">Pipeline is empty</h3>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Capture your first lead (landing → Simulation in Settings, or real
-            form submit) to see it flow across the stages here.
+            Capture your first lead (landing → Simulation in Settings → Attribution, or a real form submit) to see it land in &ldquo;New Leads&rdquo;.
           </p>
         </div>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {LANES.map(({ stage, bg, border }) => {
-            const laneLeads = byStage.get(stage) ?? [];
-            const laneValue = laneLeads.reduce((a, l) => a + (l.value ?? 0), 0);
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {COLUMNS.map((col) => {
+            const colLeads = byColumn.get(col.id) ?? [];
+            const colValue = colLeads.reduce((a, l) => a + (l.value ?? 0), 0);
             return (
-              <div
-                key={stage}
-                className={cn(
-                  "flex min-h-[500px] w-[280px] shrink-0 flex-col gap-2 rounded-2xl border p-2.5",
-                  bg,
-                  border,
-                )}
-              >
-                <div className="flex items-center justify-between gap-2 px-1">
-                  <div className="flex flex-col">
-                    <span className="text-[11.5px] font-semibold uppercase tracking-wide text-foreground">
-                      {STAGE_LABEL[stage]}
-                    </span>
-                    <span className="text-[10.5px] text-muted-foreground tabular">
-                      {laneLeads.length} · {formatMoney(laneValue)}
-                    </span>
-                  </div>
-                </div>
-
-                {laneLeads.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border/70 bg-surface/60 px-3 py-6 text-center text-[11px] text-muted-foreground">
-                    No leads here.
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {laneLeads.map((lead) => (
-                      <LeadCard
-                        key={lead.id}
-                        lead={lead}
-                        moving={movingId === lead.id}
-                        onMove={(to) => move(lead.id, to)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
+              <Lane
+                key={col.id}
+                column={col}
+                leads={colLeads}
+                value={colValue}
+                movingId={movingId}
+                onMove={move}
+              />
             );
           })}
         </div>
@@ -202,19 +251,93 @@ export default function PipelinePage() {
   );
 }
 
+function Lane({
+  column,
+  leads,
+  value,
+  movingId,
+  onMove,
+}: {
+  column: Column;
+  leads: LeadRow[];
+  value: number;
+  movingId: string | null;
+  onMove: (leadId: string, colId: string) => void;
+}) {
+  const Icon = column.icon;
+  const { accent } = column;
+  return (
+    <section
+      className={cn(
+        "flex min-h-[540px] flex-col gap-2.5 rounded-2xl border p-3",
+        accent.bg,
+        accent.border,
+      )}
+    >
+      <header className="flex items-center justify-between gap-2 px-1 pt-1">
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex h-6 w-6 items-center justify-center rounded-md border bg-surface",
+              accent.border,
+              accent.text,
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+          </span>
+          <div className="flex flex-col leading-tight">
+            <span className={cn("text-[12.5px] font-semibold", accent.text)}>
+              {column.label}
+            </span>
+            <span className="text-[10.5px] text-muted-foreground tabular">
+              {leads.length} · {formatMoney(value)}
+            </span>
+          </div>
+        </div>
+        <span
+          className={cn("h-1.5 w-1.5 rounded-full", accent.dot)}
+          aria-hidden
+        />
+      </header>
+
+      <div className="h-px bg-border/70" />
+
+      {leads.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border/70 bg-surface/60 px-3 py-6 text-center text-[11px] text-muted-foreground">
+          No leads here.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {leads.map((lead) => (
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              currentColId={column.id}
+              moving={movingId === lead.id}
+              onMove={onMove}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function LeadCard({
   lead,
+  currentColId,
   moving,
   onMove,
 }: {
   lead: LeadRow;
+  currentColId: string;
   moving: boolean;
-  onMove: (to: LeadStage) => void;
+  onMove: (leadId: string, colId: string) => void;
 }) {
   return (
     <div
       className={cn(
-        "group flex flex-col gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-2 shadow-card transition-opacity",
+        "group flex flex-col gap-1.5 rounded-xl border border-border bg-surface px-3 py-2.5 shadow-card transition-opacity",
         moving && "opacity-60",
       )}
     >
@@ -230,29 +353,29 @@ function LeadCard({
           )}
         </div>
         <DropdownMenu>
-          <DropdownMenuTrigger className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-ring group-hover:opacity-100">
+          <DropdownMenuTrigger className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring">
             <ArrowRight className="h-3.5 w-3.5" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuLabel>Move to</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {PIPELINE_STAGES.filter((s) => s !== lead.stage).map((s) => (
-              <DropdownMenuItem key={s} onClick={() => onMove(s)}>
-                {STAGE_LABEL[s]}
+            {COLUMNS.filter((c) => c.id !== currentColId).map((c) => (
+              <DropdownMenuItem key={c.id} onClick={() => onMove(lead.id, c.id)}>
+                {c.label}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
       {lead.value && (
-        <div className="text-[12px] font-semibold tabular text-foreground">
+        <div className="text-[12.5px] font-semibold tabular text-foreground">
           {formatMoney(lead.value)}
         </div>
       )}
       {(leadSource(lead) || lead.fbclid) && (
         <div className="flex flex-wrap items-center gap-1">
           {leadSource(lead) && (
-            <span className="truncate rounded border border-border bg-muted/30 px-1.5 py-0.5 text-[9.5px] text-muted-foreground">
+            <span className="truncate rounded border border-border bg-muted/30 px-1.5 py-0.5 text-[10px] text-muted-foreground">
               {leadSource(lead)}
             </span>
           )}
