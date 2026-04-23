@@ -11,6 +11,9 @@ import {
   Clock,
   Plus,
   Trash2,
+  Check,
+  ContactRound,
+  ChevronDown,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -35,6 +38,7 @@ import { useSession } from "@/lib/auth/session-context";
 import { formatRelative } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { LeadStage } from "@/types";
+import { fetchLeads, displayName as leadDisplayName, type LeadRow } from "@/lib/leads-client";
 
 /* --------------------------------------------------------------------------
  * Pipeline stage label + color (same 5 columns as the Pipeline page)
@@ -84,6 +88,7 @@ const PROVIDER_LABEL: Record<Provider, string> = {
 interface CallRecording {
   id: string;
   provider: Provider;
+  leadId: string | null;
   leadName: string;
   leadEmail: string;
   company: string;
@@ -111,6 +116,7 @@ function seedCalls(): CallRecording[] {
       company: "Nova Skin",
       occurredAt: daysAgoIso(0, 14),
       durationSec: 32 * 60 + 14,
+      leadId: null,
       pipelineStage: "demo_booked",
       summary:
         "Strong demo reception. Lead engaged on custom-audience workflow. Next step: proposal call with CFO Thursday.",
@@ -123,6 +129,7 @@ function seedCalls(): CallRecording[] {
       company: "Summit Supplements",
       occurredAt: daysAgoIso(1, 10),
       durationSec: 48 * 60 + 2,
+      leadId: null,
       pipelineStage: "mql",
       summary:
         "Discovery reveals unclear ownership of ad spend decisions. Re-engage in 2 weeks with case study.",
@@ -135,6 +142,7 @@ function seedCalls(): CallRecording[] {
       company: "Mornthreads Apparel",
       occurredAt: daysAgoIso(2, 15),
       durationSec: 21 * 60 + 45,
+      leadId: null,
       pipelineStage: "closed_won",
       summary: "Contract signed on the call. Kickoff Monday. ACV $36k/annual.",
     },
@@ -146,6 +154,7 @@ function seedCalls(): CallRecording[] {
       company: "Kinetic Coffee Co.",
       occurredAt: daysAgoIso(3, 11),
       durationSec: 14 * 60 + 30,
+      leadId: null,
       pipelineStage: "proposal",
       summary:
         "Technical questions around Supabase RLS + CAPI rotation. Wants architecture diagram before exec meeting.",
@@ -158,6 +167,7 @@ function seedCalls(): CallRecording[] {
       company: "Halocraft Tools",
       occurredAt: daysAgoIso(4, 9),
       durationSec: 18 * 60 + 6,
+      leadId: null,
       pipelineStage: "closed_lost",
       summary: "Lost to competitor on price. Worth reconnecting post-renewal in 9 months.",
     },
@@ -169,6 +179,7 @@ function seedCalls(): CallRecording[] {
       company: "Luxe Beauty",
       occurredAt: daysAgoIso(5, 16),
       durationSec: 11 * 60 + 12,
+      leadId: null,
       pipelineStage: "demo_attended",
       summary: "No-show. Re-booked for next Thursday 10am. Slack ping before the call.",
     },
@@ -180,6 +191,7 @@ function seedCalls(): CallRecording[] {
       company: "Moreau Group",
       occurredAt: daysAgoIso(6, 13),
       durationSec: 26 * 60,
+      leadId: null,
       pipelineStage: "lead",
       summary: "First inbound. Referred by a customer. Quick intro.",
     },
@@ -191,6 +203,7 @@ function seedCalls(): CallRecording[] {
       company: "Hale Studios",
       occurredAt: daysAgoIso(7, 10),
       durationSec: 34 * 60,
+      leadId: null,
       pipelineStage: "proposal",
       summary: "Quote sent yesterday. Awaiting sign-off from co-founder.",
     },
@@ -565,35 +578,74 @@ function AddCallDialog({
   onOpenChange: (v: boolean) => void;
   onSubmit: (c: CallRecording) => void;
 }) {
-  const [leadName, setLeadName] = React.useState("");
-  const [company, setCompany] = React.useState("");
-  const [email, setEmail] = React.useState("");
+  const [leads, setLeads] = React.useState<LeadRow[] | null>(null);
+  const [loadingLeads, setLoadingLeads] = React.useState(false);
+  const [selectedLead, setSelectedLead] = React.useState<LeadRow | null>(null);
   const [datetime, setDatetime] = React.useState(() => toDatetimeLocal(new Date()));
   const [durationMin, setDurationMin] = React.useState<number>(15);
   const [stage, setStage] = React.useState<LeadStage>("demo_booked");
   const [summary, setSummary] = React.useState("");
+  const [search, setSearch] = React.useState("");
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+
+  // Load leads when the dialog opens (or when it reopens)
+  React.useEffect(() => {
+    if (!open) return;
+    setLoadingLeads(true);
+    void (async () => {
+      const rows = await fetchLeads();
+      setLeads(rows);
+      setLoadingLeads(false);
+    })();
+  }, [open]);
 
   const reset = () => {
-    setLeadName("");
-    setCompany("");
-    setEmail("");
+    setSelectedLead(null);
     setDatetime(toDatetimeLocal(new Date()));
     setDurationMin(15);
     setStage("demo_booked");
     setSummary("");
+    setSearch("");
+    setPickerOpen(false);
   };
 
+  // When a lead is picked, default the stage to their current pipeline stage.
+  React.useEffect(() => {
+    if (selectedLead) {
+      setStage(selectedLead.stage);
+    }
+  }, [selectedLead]);
+
+  const filteredLeads = React.useMemo(() => {
+    if (!leads) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return leads;
+    return leads.filter((l) => {
+      const hay = [
+        l.email,
+        l.first_name,
+        l.last_name,
+        l.company,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [leads, search]);
+
   const submit = () => {
-    if (!leadName.trim()) return;
+    if (!selectedLead) return;
     const occurredAt = datetime
       ? new Date(datetime).toISOString()
       : new Date().toISOString();
     onSubmit({
       id: `manual-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       provider: "manual",
-      leadName: leadName.trim(),
-      company: company.trim(),
-      leadEmail: email.trim(),
+      leadId: selectedLead.id,
+      leadName: leadDisplayName(selectedLead),
+      company: selectedLead.company ?? "",
+      leadEmail: selectedLead.email ?? "",
       occurredAt,
       durationSec: Math.max(0, Math.round(durationMin * 60)),
       pipelineStage: stage,
@@ -621,9 +673,9 @@ function AddCallDialog({
         <DialogHeader>
           <DialogTitle>Ajouter un appel manuellement</DialogTitle>
           <DialogDescription>
-            Utile pour les appels qui ne passent pas par un provider
-            connecté. Sauvegardé localement tant qu&apos;une table Supabase
-            dédiée n&apos;est pas wirée.
+            Sélectionne un lead existant, puis précise la date, la durée et
+            les notes. Le nom, l&apos;entreprise et l&apos;email du lead sont
+            repris automatiquement.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -633,34 +685,108 @@ function AddCallDialog({
             submit();
           }}
         >
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label>Nom du lead</Label>
-              <Input
-                required
-                value={leadName}
-                onChange={(e) => setLeadName(e.target.value)}
-                placeholder="Jane Doe"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Entreprise</Label>
-              <Input
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                placeholder="Acme Co."
-              />
-            </div>
-          </div>
-
+          {/* Lead picker */}
           <div className="flex flex-col gap-1.5">
-            <Label>Email (optionnel)</Label>
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="jane@acme.com"
-            />
+            <Label>Lead</Label>
+            {selectedLead ? (
+              <div className="flex items-center gap-3 rounded-md border border-border bg-muted/20 px-3 py-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground/5 text-[10.5px] font-semibold">
+                  {initials(leadDisplayName(selectedLead))}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate text-[13px] font-semibold">
+                    {leadDisplayName(selectedLead)}
+                  </div>
+                  <div className="truncate text-[11px] text-muted-foreground">
+                    {[selectedLead.company, selectedLead.email]
+                      .filter(Boolean)
+                      .join(" · ") || "—"}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedLead(null);
+                    setPickerOpen(true);
+                  }}
+                >
+                  Changer
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 rounded-md border border-border bg-surface">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    autoFocus={pickerOpen}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Rechercher un lead (email, nom, entreprise)…"
+                    className="h-9 rounded-b-none border-0 border-b border-border pl-8"
+                  />
+                </div>
+                <div className="max-h-[220px] overflow-y-auto">
+                  {loadingLeads ? (
+                    <div className="px-3 py-6 text-center text-[12px] text-muted-foreground">
+                      Chargement des leads…
+                    </div>
+                  ) : filteredLeads.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-[12px] text-muted-foreground">
+                      {leads?.length === 0
+                        ? "Aucun lead dans ta Supabase — crée-en un d'abord (page Leads → Ajouter un lead)."
+                        : "Aucun lead ne correspond à cette recherche."}
+                    </div>
+                  ) : (
+                    <ul className="flex flex-col p-1">
+                      {filteredLeads.map((l) => {
+                        const name = leadDisplayName(l);
+                        const subtitle = [l.company, l.email]
+                          .filter(Boolean)
+                          .join(" · ");
+                        const colorMeta = PIPELINE_COLUMN[l.stage];
+                        return (
+                          <li key={l.id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedLead(l);
+                                setPickerOpen(false);
+                              }}
+                              className="group flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted"
+                            >
+                              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground/5 text-[10.5px] font-semibold">
+                                {initials(name)}
+                              </span>
+                              <span className="flex-1 min-w-0">
+                                <span className="block truncate text-[12.5px] font-medium">
+                                  {name}
+                                </span>
+                                {subtitle && (
+                                  <span className="block truncate text-[11px] text-muted-foreground">
+                                    {subtitle}
+                                  </span>
+                                )}
+                              </span>
+                              <span
+                                className={cn(
+                                  "shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-semibold",
+                                  colorMeta.bg,
+                                  colorMeta.text,
+                                )}
+                              >
+                                {colorMeta.label}
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -687,7 +813,7 @@ function AddCallDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>Stage pipeline</Label>
+            <Label>Stage pipeline à l&apos;instant de l&apos;appel</Label>
             <Select value={stage} onValueChange={(v) => setStage(v as LeadStage)}>
               <SelectTrigger>
                 <SelectValue />
@@ -700,6 +826,9 @@ function AddCallDialog({
                 ))}
               </SelectContent>
             </Select>
+            <span className="text-[11px] text-muted-foreground">
+              Par défaut : le stage actuel du lead sélectionné.
+            </span>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -724,7 +853,7 @@ function AddCallDialog({
             type="button"
             variant="primary"
             onClick={submit}
-            disabled={!leadName.trim()}
+            disabled={!selectedLead}
           >
             <Plus />
             Ajouter l&apos;appel

@@ -63,6 +63,35 @@ export async function updateLeadStage(
   return { ok: res.ok && body.ok, error: body.error };
 }
 
+export interface CreateLeadInput {
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  company?: string;
+  stage?: LeadStage;
+  value?: number;
+  currency?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  external_id?: string;
+}
+
+export async function createLead(
+  input: CreateLeadInput,
+): Promise<{ ok: boolean; leadId?: string; error?: string }> {
+  const res = await fetch("/api/leads/create", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.ok) {
+    return { ok: false, error: body.error ?? "create_failed" };
+  }
+  return { ok: true, leadId: body.leadId };
+}
+
 export const STAGE_LABEL: Record<LeadStage, string> = {
   lead: "Lead",
   mql: "MQL",

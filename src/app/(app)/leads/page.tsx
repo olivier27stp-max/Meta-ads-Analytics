@@ -12,11 +12,12 @@ import {
   TrendingUp,
   Link as LinkIcon,
   ExternalLink,
+  Plus,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Input, Label } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -29,11 +30,15 @@ import {
   DialogContent,
   DialogTitle,
   DialogDescription,
+  DialogHeader,
+  DialogFooter,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { KpiCard, KpiStrip } from "@/components/kpi/KpiCard";
 import {
   fetchLeads,
   updateLeadStage,
+  createLead,
   displayName,
   leadSource,
   PIPELINE_STAGES,
@@ -107,10 +112,13 @@ export default function LeadsPage() {
         title="Leads"
         description="Every form submission captured from your landing. Attribution + pipeline state in one view."
         actions={
-          <Button variant="secondary" size="md" onClick={refresh} disabled={loading}>
-            <RefreshCw className={loading ? "animate-spin" : ""} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="md" onClick={refresh} disabled={loading}>
+              <RefreshCw className={loading ? "animate-spin" : ""} />
+              Refresh
+            </Button>
+            <AddLeadDialog onCreated={refresh} />
+          </div>
         }
       />
 
@@ -435,5 +443,216 @@ function AttrRow({
         {value || "—"}
       </span>
     </div>
+  );
+}
+
+function AddLeadDialog({ onCreated }: { onCreated: () => Promise<void> | void }) {
+  const [open, setOpen] = React.useState(false);
+  const [firstName, setFirstName] = React.useState("");
+  const [lastName, setLastName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [company, setCompany] = React.useState("");
+  const [stage, setStage] = React.useState<LeadStage>("lead");
+  const [value, setValue] = React.useState<string>("");
+  const [utmCampaign, setUtmCampaign] = React.useState("");
+  const [utmContent, setUtmContent] = React.useState("");
+  const [externalId, setExternalId] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const reset = () => {
+    setFirstName("");
+    setLastName("");
+    setEmail("");
+    setPhone("");
+    setCompany("");
+    setStage("lead");
+    setValue("");
+    setUtmCampaign("");
+    setUtmContent("");
+    setExternalId("");
+    setError(null);
+  };
+
+  const canSubmit = Boolean(email.trim() || firstName.trim() || lastName.trim());
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSaving(true);
+    setError(null);
+    const numericValue = value.trim() ? parseFloat(value) : undefined;
+    const res = await createLead({
+      email: email.trim() || undefined,
+      first_name: firstName.trim() || undefined,
+      last_name: lastName.trim() || undefined,
+      phone: phone.trim() || undefined,
+      company: company.trim() || undefined,
+      stage,
+      value: Number.isFinite(numericValue) ? numericValue : undefined,
+      utm_campaign: utmCampaign.trim() || undefined,
+      utm_content: utmContent.trim() || undefined,
+      external_id: externalId.trim() || undefined,
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setError(res.error ?? "create_failed");
+      return;
+    }
+    reset();
+    setOpen(false);
+    await onCreated();
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="primary" size="md">
+          <Plus />
+          Ajouter un lead
+        </Button>
+      </DialogTrigger>
+      <DialogContent size="md">
+        <DialogHeader>
+          <DialogTitle>Ajouter un lead</DialogTitle>
+          <DialogDescription>
+            Crée manuellement un lead dans ton workspace. Il apparaîtra dans la
+            Pipeline et sera sélectionnable dans le form d&apos;ajout d&apos;appel.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="flex flex-col gap-3 px-6 pb-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>Prénom</Label>
+              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Jane" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Nom</Label>
+              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Doe" />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Email</Label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="jane@acme.com"
+            />
+            <span className="text-[11px] text-muted-foreground">
+              Un email OU un nom est requis.
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>Téléphone</Label>
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+1 514 555 0100"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Entreprise</Label>
+              <Input
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="Acme Co."
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>Stage pipeline</Label>
+              <Select value={stage} onValueChange={(v) => setStage(v as LeadStage)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PIPELINE_STAGES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {STAGE_LABEL[s]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Valeur du deal (optionnel)</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>UTM campaign (optionnel)</Label>
+              <Input
+                value={utmCampaign}
+                onChange={(e) => setUtmCampaign(e.target.value)}
+                placeholder="prospecting_us_broad"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>UTM content / creative (optionnel)</Label>
+              <Input
+                value={utmContent}
+                onChange={(e) => setUtmContent(e.target.value)}
+                placeholder="founder_story_45s"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>CRM external id (optionnel)</Label>
+            <Input
+              value={externalId}
+              onChange={(e) => setExternalId(e.target.value)}
+              placeholder="hubspot_contact_88421"
+              className="font-mono"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-md border border-danger/30 bg-danger-soft px-3 py-2 text-[12px] text-danger">
+              {error}
+            </div>
+          )}
+        </form>
+        <DialogFooter>
+          <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
+            Annuler
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => void submit()}
+            disabled={!canSubmit || saving}
+          >
+            <Plus />
+            {saving ? "Création…" : "Créer le lead"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
