@@ -25,7 +25,14 @@ export function SessionProvider({
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
-      await hydrateStoreForCurrentSession();
+      try {
+        await hydrateStoreForCurrentSession();
+      } catch (err) {
+        // Don't block the UI if rehydration fails — the store keeps its
+        // in-memory defaults and the next mutation will create the workspace
+        // row via upsert.
+        console.warn("[session] hydrate failed", err);
+      }
       if (!cancelled) setReady(true);
     })();
     return () => {
