@@ -86,8 +86,6 @@ const STAGE_TO_COL: Record<LeadStage, string> = {
  * seed data and real rows share one rendering path.
  * ------------------------------------------------------------------------ */
 
-type TagKind = "hot" | "followup" | "pending";
-
 interface DealCard {
   id: string;
   name: string;
@@ -95,117 +93,9 @@ interface DealCard {
   value: number | null;
   currency: string;
   stage: LeadStage;
-  tag: TagKind;
   ageDays: number;
   /** Real leads carry their Supabase id so moves can persist. */
   realId: string | null;
-}
-
-const TAG_LABEL: Record<TagKind, string> = {
-  hot: "Hot",
-  followup: "Follow-up",
-  pending: "Pending",
-};
-
-const TAG_CLASS: Record<TagKind, string> = {
-  hot: "border-rose-200 bg-rose-50 text-rose-600",
-  followup: "border-blue-200 bg-blue-50 text-blue-600",
-  pending: "border-border bg-muted/60 text-muted-foreground",
-};
-
-/* --------------------------------------------------------------------------
- * Seed — mirrors the provided reference screenshot (7 deals, $7,000,000).
- * Used when the workspace has zero real leads.
- * ------------------------------------------------------------------------ */
-
-const SEED_DEALS: DealCard[] = [
-  {
-    id: "seed-1",
-    name: "[QA] Alexandre Fortin",
-    company: null,
-    value: 250_000,
-    currency: "USD",
-    stage: "lead",
-    tag: "hot",
-    ageDays: 9,
-    realId: null,
-  },
-  {
-    id: "seed-2",
-    name: "[QA] Émilie Bergeron",
-    company: null,
-    value: 850_000,
-    currency: "USD",
-    stage: "lead",
-    tag: "pending",
-    ageDays: 9,
-    realId: null,
-  },
-  {
-    id: "seed-3",
-    name: "[QA] Marie Tremblay",
-    company: null,
-    value: 320_000,
-    currency: "USD",
-    stage: "demo_booked",
-    tag: "followup",
-    ageDays: 9,
-    realId: null,
-  },
-  {
-    id: "seed-4",
-    name: "[QA] Patrick Bélanger",
-    company: null,
-    value: 1_500_000,
-    currency: "USD",
-    stage: "demo_booked",
-    tag: "hot",
-    ageDays: 9,
-    realId: null,
-  },
-  {
-    id: "seed-5",
-    name: "[QA] Sophie Bouchard",
-    company: null,
-    value: 2_200_000,
-    currency: "USD",
-    stage: "proposal",
-    tag: "pending",
-    ageDays: 9,
-    realId: null,
-  },
-  {
-    id: "seed-6",
-    name: "[QA] François Gauthier",
-    company: null,
-    value: 680_000,
-    currency: "USD",
-    stage: "proposal",
-    tag: "hot",
-    ageDays: 9,
-    realId: null,
-  },
-  {
-    id: "seed-7",
-    name: "[QA] Isabelle Roy",
-    company: null,
-    value: 1_200_000,
-    currency: "USD",
-    stage: "closed_won",
-    tag: "pending",
-    ageDays: 9,
-    realId: null,
-  },
-];
-
-function deriveTag(lead: LeadRow): TagKind {
-  const ageDays =
-    (Date.now() - new Date(lead.updated_at).getTime()) / (1000 * 60 * 60 * 24);
-  if (lead.stage === "demo_booked" || lead.stage === "demo_attended")
-    return "followup";
-  if ((lead.stage === "lead" || lead.stage === "mql") && ageDays < 3)
-    return "hot";
-  return "pending";
 }
 
 function toDealCard(lead: LeadRow): DealCard {
@@ -228,7 +118,6 @@ function toDealCard(lead: LeadRow): DealCard {
     value: lead.value,
     currency: lead.currency,
     stage: lead.stage,
-    tag: deriveTag(lead),
     ageDays,
     realId: lead.id,
   };
@@ -250,13 +139,6 @@ export default function PipelinePage() {
   const [leads, setLeads] = React.useState<LeadRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [movingId, setMovingId] = React.useState<string | null>(null);
-  /**
-   * Seed cards live in state so the Move-to menu can mutate them optimistically
-   * (lets the user see the screenshot UX work even before the DB has leads).
-   */
-  const [seedCards, setSeedCards] = React.useState<DealCard[]>(() => [
-    ...SEED_DEALS,
-  ]);
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
@@ -268,12 +150,10 @@ export default function PipelinePage() {
     void refresh();
   }, [refresh]);
 
-  const deals: DealCard[] = React.useMemo(() => {
-    if (leads.length > 0) return leads.map(toDealCard);
-    return seedCards;
-  }, [leads, seedCards]);
-
-  const usingSeed = leads.length === 0;
+  const deals: DealCard[] = React.useMemo(
+    () => leads.map(toDealCard),
+    [leads],
+  );
 
   const byColumn = React.useMemo(() => {
     const m = new Map<string, DealCard[]>();
@@ -287,38 +167,30 @@ export default function PipelinePage() {
 
   const move = async (deal: DealCard, targetColId: string) => {
     const col = COLUMNS.find((c) => c.id === targetColId);
-    if (!col) return;
+    if (!col || !deal.realId) return;
     setMovingId(deal.id);
-
-    if (deal.realId) {
-      // Real lead — optimistic UI + persist via API
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === deal.realId ? { ...l, stage: col.primary } : l,
-        ),
-      );
-      const res = await updateLeadStage(deal.realId, col.primary);
-      setMovingId(null);
-      if (!res.ok) await refresh();
-    } else {
-      // Seed card — local-only move
-      setSeedCards((prev) =>
-        prev.map((d) =>
-          d.id === deal.id ? { ...d, stage: col.primary } : d,
-        ),
-      );
-      setMovingId(null);
-    }
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === deal.realId ? { ...l, stage: col.primary } : l,
+      ),
+    );
+    const res = await updateLeadStage(deal.realId, col.primary);
+    setMovingId(null);
+    if (!res.ok) await refresh();
   };
 
   const totalDeals = deals.length;
-  const totalValue = deals.reduce((a, d) => a + (d.value ?? 0), 0);
+  // Only closed_won contract values are counted toward the header total,
+  // since open-stage deals don't have a confirmed contract value yet.
+  const closedValue = deals
+    .filter((d) => d.stage === "closed_won")
+    .reduce((a, d) => a + (d.value ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Pipeline D2D"
-        description={`${totalDeals} deal${totalDeals === 1 ? "" : "s"} · ${formatMoney(totalValue)}`}
+        description={`${totalDeals} deal${totalDeals === 1 ? "" : "s"}${closedValue > 0 ? ` · ${formatMoney(closedValue)} closed` : ""}`}
         actions={
           <Button variant="secondary" size="md" onClick={refresh} disabled={loading}>
             <RefreshCw className={loading ? "animate-spin" : ""} />
@@ -327,25 +199,14 @@ export default function PipelinePage() {
         }
       />
 
-      {usingSeed && (
-        <div className="rounded-xl border border-warning/25 bg-warning-soft/60 px-3 py-2 text-[11.5px] text-warning">
-          <span className="font-semibold">Aperçu.</span> Aucun lead réel dans ta
-          Supabase — les 7 deals ci-dessous sont des données de démonstration
-          pour que tu voies la mise en page. Ils disparaîtront dès qu&apos;un
-          vrai lead sera capturé.
-        </div>
-      )}
-
       <div className="grid grid-cols-5 gap-3">
         {COLUMNS.map((col) => {
           const colDeals = byColumn.get(col.id) ?? [];
-          const colValue = colDeals.reduce((a, d) => a + (d.value ?? 0), 0);
           return (
             <Lane
               key={col.id}
               column={col}
               deals={colDeals}
-              value={colValue}
               movingId={movingId}
               onMove={move}
             />
@@ -359,16 +220,20 @@ export default function PipelinePage() {
 function Lane({
   column,
   deals,
-  value,
   movingId,
   onMove,
 }: {
   column: Column;
   deals: DealCard[];
-  value: number;
   movingId: string | null;
   onMove: (deal: DealCard, colId: string) => void;
 }) {
+  // Only Closed Won shows a total value in its header — open stages have
+  // no confirmed contract value.
+  const headerValue =
+    column.id === "closed_won"
+      ? deals.reduce((a, d) => a + (d.value ?? 0), 0)
+      : 0;
   return (
     <section className="flex min-h-[460px] flex-col gap-2 rounded-2xl border border-border bg-muted/15 p-2.5">
       <header className="flex items-center justify-between gap-2 px-1 pt-1">
@@ -384,9 +249,9 @@ function Lane({
             {deals.length}
           </span>
         </div>
-        {value > 0 && (
+        {headerValue > 0 && (
           <span className="shrink-0 text-[10.5px] font-medium tabular text-muted-foreground">
-            {formatMoney(value)}
+            {formatMoney(headerValue)}
           </span>
         )}
       </header>
@@ -423,6 +288,8 @@ function DealCardView({
   moving: boolean;
   onMove: (deal: DealCard, colId: string) => void;
 }) {
+  // Contract value is only meaningful once the deal is closed-won.
+  const showValue = deal.stage === "closed_won" && deal.value !== null;
   return (
     <div
       className={cn(
@@ -452,21 +319,14 @@ function DealCardView({
           </DropdownMenu>
         </div>
 
-        <div className="mt-1.5">
-          <span
-            className={cn(
-              "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10.5px] font-medium",
-              TAG_CLASS[deal.tag],
-            )}
-          >
-            {TAG_LABEL[deal.tag]}
-          </span>
-        </div>
-
         <div className="mt-2 flex items-baseline justify-between gap-2">
-          <span className="text-[13px] font-semibold tabular text-foreground">
-            {deal.value ? formatMoney(deal.value) : "—"}
-          </span>
+          {showValue ? (
+            <span className="text-[13px] font-semibold tabular text-foreground">
+              {formatMoney(deal.value!)}
+            </span>
+          ) : (
+            <span />
+          )}
           <span className="text-[10.5px] text-muted-foreground tabular">
             {formatAge(deal.ageDays)}
           </span>
