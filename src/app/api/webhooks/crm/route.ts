@@ -114,10 +114,11 @@ export async function POST(req: Request) {
     fbp: string | null;
     landing_url: string | null;
     currency: string;
+    stage: string;
   }
   let lead: LeadRow | null = null;
 
-  const selectCols = "id,email,phone,first_name,last_name,fbc,fbp,landing_url,currency";
+  const selectCols = "id,email,phone,first_name,last_name,fbc,fbp,landing_url,currency,stage";
 
   if (parsed.data.lead_id) {
     const { data } = await admin
@@ -168,6 +169,22 @@ export async function POST(req: Request) {
   if (parsed.data.user?.last_name) updatePatch.last_name = parsed.data.user.last_name;
 
   await admin.from("leads").update(updatePatch).eq("id", lead.id);
+
+  // Activity log
+  if (lead.stage !== parsed.data.stage) {
+    void admin.from("lead_activity").insert({
+      workspace_id: ws.workspaceId,
+      lead_id: lead.id,
+      actor: "crm_webhook",
+      event_type: "stage_changed",
+      from_stage: lead.stage,
+      to_stage: parsed.data.stage,
+      value: parsed.data.value ?? null,
+      details: {
+        external_id: parsed.data.external_id ?? null,
+      },
+    });
+  }
 
   // 5) Fire CAPI event if mapped
   const eventName =

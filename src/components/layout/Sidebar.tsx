@@ -16,6 +16,7 @@ import {
   ContactRound,
   PhoneCall,
   GitBranch,
+  Workflow,
 } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
@@ -128,6 +129,12 @@ export function Sidebar() {
           Planning
         </div>
         <TopLink href="/calendar" icon={CalendarDays} label="Calendrier" pathname={pathname} />
+
+        {/* Infrastructure */}
+        <div className="mt-3 px-2 pb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Infrastructure
+        </div>
+        <TopLink href="/automation" icon={Workflow} label="Automation" pathname={pathname} />
       </nav>
 
       {/* Footer: AI status + user menu */}

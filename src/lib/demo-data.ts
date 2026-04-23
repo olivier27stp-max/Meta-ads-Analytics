@@ -388,6 +388,20 @@ export function defaultSettings(): Settings {
       },
       defaultCurrency: "USD",
     },
+    automation: {
+      twilio: {
+        accountSid: "",
+        authToken: "",
+        recordingWebhookEnabled: false,
+      },
+      automations: {
+        leads: true,
+        twilio: false,
+        googleCalendar: false,
+        pipeline: true,
+        adAnalyst: true,
+      },
+    },
     updatedAt: new Date().toISOString(),
   };
 }

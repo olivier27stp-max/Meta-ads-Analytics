@@ -114,6 +114,21 @@ export async function POST(req: Request) {
     );
   }
 
+  // Activity log — lead created
+  void admin.from("lead_activity").insert({
+    workspace_id: ws.workspaceId,
+    lead_id: lead.id,
+    actor: "api",
+    event_type: "lead_created",
+    to_stage: "lead",
+    details: {
+      utm_campaign: parsed.data.utm_campaign ?? null,
+      utm_content: parsed.data.utm_content ?? null,
+      fbclid: parsed.data.fbclid ?? null,
+      landing_url: parsed.data.landing_url ?? null,
+    },
+  });
+
   // Fire CAPI "Lead" event immediately if configured.
   let capiResult: { ok: boolean; httpStatus: number } | null = null;
   const { pixelId, capiAccessToken, testEventCode, stageMap, defaultCurrency } = ws.attribution;

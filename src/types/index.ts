@@ -245,6 +245,79 @@ export interface AttributionSettings {
   defaultCurrency: string;
 }
 
+export interface TwilioSettings {
+  accountSid: string;
+  authToken: string; // used to verify inbound webhook signatures
+  recordingWebhookEnabled: boolean;
+}
+
+export interface AutomationSettings {
+  twilio: TwilioSettings;
+  automations: {
+    leads: boolean;
+    twilio: boolean;
+    googleCalendar: boolean;
+    pipeline: boolean;
+    adAnalyst: boolean;
+  };
+}
+
+export interface TwilioCall {
+  id: string;
+  leadId: string | null;
+  twilioCallSid: string | null;
+  direction: string | null;
+  fromNumber: string | null;
+  toNumber: string | null;
+  status: string | null;
+  durationSec: number | null;
+  recordingUrl: string | null;
+  transcription: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+}
+
+export interface GoogleOAuthStatus {
+  connected: boolean;
+  email: string | null;
+  connectedAt: string | null;
+  lastSyncedAt: string | null;
+  lastSyncError: string | null;
+}
+
+export interface CalendarEventRow {
+  id: string;
+  googleEventId: string;
+  title: string | null;
+  description: string | null;
+  location: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  isAllDay: boolean;
+  status: string | null;
+  attendees: Array<{ email: string; displayName?: string }> | null;
+  organizerEmail: string | null;
+  htmlLink: string | null;
+}
+
+export interface LeadActivityRow {
+  id: string;
+  leadId: string | null;
+  actor: "user" | "crm_webhook" | "pipeline_ui" | "cron" | "api" | "system";
+  eventType:
+    | "lead_created"
+    | "stage_changed"
+    | "capi_fired"
+    | "value_updated"
+    | string;
+  fromStage: string | null;
+  toStage: string | null;
+  value: number | null;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 export type LeadStage =
   | "lead"
   | "mql"
@@ -311,6 +384,7 @@ export interface Settings {
   winningThresholds: WinningThresholds;
   coaching: CoachingPreferences;
   attribution: AttributionSettings;
+  automation: AutomationSettings;
   updatedAt: string;
 }
 

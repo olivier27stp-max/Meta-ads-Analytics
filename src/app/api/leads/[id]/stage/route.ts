@@ -56,13 +56,15 @@ export async function POST(
   const admin = getAdminSupabase();
   const { data: lead, error: leadErr } = await admin
     .from("leads")
-    .select("id,workspace_id,email,phone,first_name,last_name,fbc,fbp,landing_url,currency")
+    .select("id,workspace_id,email,phone,first_name,last_name,fbc,fbp,landing_url,currency,stage")
     .eq("id", id)
     .eq("workspace_id", userRes.user.id)
     .maybeSingle();
   if (leadErr || !lead) {
     return NextResponse.json({ ok: false, error: "lead_not_found" }, { status: 404 });
   }
+
+  const fromStage = (lead as { stage?: string }).stage ?? null;
 
   const update: Record<string, unknown> = {
     stage: parsed.data.stage,
@@ -74,6 +76,20 @@ export async function POST(
     .from("leads")
     .update(update)
     .eq("id", lead.id);
+
+  // Activity log — fire-and-forget (we don't block on it if insert fails).
+  if (!updateErr && fromStage !== parsed.data.stage) {
+    void admin.from("lead_activity").insert({
+      workspace_id: userRes.user.id,
+      lead_id: lead.id,
+      actor: "pipeline_ui",
+      event_type: "stage_changed",
+      from_stage: fromStage,
+      to_stage: parsed.data.stage,
+      value: parsed.data.value ?? null,
+      details: { source: "in_app_move" },
+    });
+  }
   if (updateErr) {
     return NextResponse.json(
       { ok: false, error: "update_failed", detail: updateErr.message },
