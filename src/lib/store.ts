@@ -769,6 +769,53 @@ export const useStore = create<StoreState>()(
         viewMode: state.viewMode,
         visibleColumns: state.visibleColumns,
       }),
+      // Deep-merge the persisted slice into the current defaults. This is
+      // what makes new settings sections (e.g. settings.automation added
+      // after a user's workspace was already populated) backfill gracefully
+      // instead of throwing 'undefined' errors when a new tab reads them.
+      merge: (persistedRaw, current) => {
+        const persisted = (persistedRaw ?? {}) as Partial<StoreState>;
+        const defaults = defaultSettings();
+        const currentSettings = current.settings;
+        const persistedSettings = persisted.settings as Partial<Settings> | undefined;
+        return {
+          ...current,
+          ...persisted,
+          settings: {
+            ...defaults,
+            ...currentSettings,
+            ...(persistedSettings ?? {}),
+            winningThresholds: {
+              ...defaults.winningThresholds,
+              ...(persistedSettings?.winningThresholds ?? {}),
+            },
+            coaching: {
+              ...defaults.coaching,
+              ...(persistedSettings?.coaching ?? {}),
+            },
+            attribution: {
+              ...defaults.attribution,
+              ...(persistedSettings?.attribution ?? {}),
+              stageMap: {
+                ...defaults.attribution.stageMap,
+                ...(persistedSettings?.attribution?.stageMap ?? {}),
+              },
+            },
+            automation: {
+              ...defaults.automation,
+              ...(persistedSettings?.automation ?? {}),
+              twilio: {
+                ...defaults.automation.twilio,
+                ...(persistedSettings?.automation?.twilio ?? {}),
+              },
+              automations: {
+                ...defaults.automation.automations,
+                ...(persistedSettings?.automation?.automations ?? {}),
+              },
+            },
+          },
+        } as StoreState;
+      },
     },
   ),
 );

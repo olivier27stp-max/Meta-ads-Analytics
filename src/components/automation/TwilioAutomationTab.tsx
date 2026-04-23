@@ -25,13 +25,14 @@ interface TwilioCallRow {
 export function TwilioAutomationTab() {
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
+  const twilioSettings = settings.automation?.twilio ?? {
+    accountSid: "",
+    authToken: "",
+    recordingWebhookEnabled: false,
+  };
 
-  const [accountSid, setAccountSid] = React.useState(
-    settings.automation.twilio.accountSid,
-  );
-  const [authToken, setAuthToken] = React.useState(
-    settings.automation.twilio.authToken,
-  );
+  const [accountSid, setAccountSid] = React.useState(twilioSettings.accountSid);
+  const [authToken, setAuthToken] = React.useState(twilioSettings.authToken);
   const [showToken, setShowToken] = React.useState(false);
   const [workspaceId, setWorkspaceId] = React.useState<string | null>(null);
   const [apiKey, setApiKey] = React.useState<string | null>(null);
@@ -41,9 +42,10 @@ export function TwilioAutomationTab() {
   const origin = typeof window !== "undefined" ? window.location.origin : "https://YOUR_APP";
 
   React.useEffect(() => {
-    setAccountSid(settings.automation.twilio.accountSid);
-    setAuthToken(settings.automation.twilio.authToken);
-  }, [settings.automation.twilio]);
+    setAccountSid(twilioSettings.accountSid);
+    setAuthToken(twilioSettings.authToken);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [twilioSettings.accountSid, twilioSettings.authToken]);
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
@@ -78,17 +80,23 @@ export function TwilioAutomationTab() {
       : "pending"
     : "disconnected";
   const dirty =
-    accountSid !== settings.automation.twilio.accountSid ||
-    authToken !== settings.automation.twilio.authToken;
+    accountSid !== twilioSettings.accountSid ||
+    authToken !== twilioSettings.authToken;
 
   const save = () =>
     updateSettings({
       automation: {
-        ...settings.automation,
         twilio: {
-          ...settings.automation.twilio,
+          ...twilioSettings,
           accountSid,
           authToken,
+        },
+        automations: settings.automation?.automations ?? {
+          leads: true,
+          twilio: false,
+          googleCalendar: false,
+          pipeline: true,
+          adAnalyst: true,
         },
       },
     });
