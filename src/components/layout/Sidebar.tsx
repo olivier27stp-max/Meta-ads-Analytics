@@ -13,12 +13,14 @@ import {
   FileText,
   Settings2,
   Sparkles,
+  ContactRound,
+  PhoneCall,
+  GitBranch,
 } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "./UserMenu";
 
-// Each Meta Ads sub-page — same set as the top-tabs used to cover.
 const META_ADS_ITEMS = [
   { href: "/accounts", label: "Accounts", icon: Users2 },
   { href: "/creatives", label: "Creatives", icon: LayoutGrid },
@@ -37,8 +39,6 @@ export function Sidebar() {
   React.useEffect(() => {
     if (isMetaAds) setMetaExpanded(true);
   }, [isMetaAds]);
-
-  const isCalendar = pathname.startsWith("/calendar");
 
   return (
     <aside className="sticky top-0 flex h-screen w-[240px] shrink-0 flex-col border-r border-border bg-surface/80 backdrop-blur">
@@ -110,19 +110,24 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Calendrier */}
-        <Link
-          href="/calendar"
-          className={cn(
-            "flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors focus-ring",
-            isCalendar
-              ? "bg-muted text-foreground"
-              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-          )}
-        >
-          <CalendarDays className="h-3.5 w-3.5" />
-          Calendrier
-        </Link>
+        {/* Sales flow */}
+        <div className="mt-3 px-2 pb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Sales
+        </div>
+        <TopLink href="/pipeline" icon={GitBranch} label="Pipeline" pathname={pathname} />
+        <TopLink href="/leads" icon={ContactRound} label="Leads" pathname={pathname} />
+        <TopLink
+          href="/calls"
+          icon={PhoneCall}
+          label="Call recordings"
+          pathname={pathname}
+        />
+
+        {/* Planning */}
+        <div className="mt-3 px-2 pb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Planning
+        </div>
+        <TopLink href="/calendar" icon={CalendarDays} label="Calendrier" pathname={pathname} />
       </nav>
 
       {/* Footer: AI status + user menu */}
@@ -135,5 +140,33 @@ export function Sidebar() {
         <UserMenu />
       </div>
     </aside>
+  );
+}
+
+function TopLink({
+  href,
+  icon: Icon,
+  label,
+  pathname,
+}: {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  pathname: string;
+}) {
+  const active = pathname.startsWith(href);
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors focus-ring",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </Link>
   );
 }
