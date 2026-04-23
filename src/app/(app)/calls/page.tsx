@@ -331,7 +331,7 @@ function CallBox({
     <button
       type="button"
       onClick={onOpen}
-      className="group flex aspect-square flex-col gap-2 rounded-2xl border border-border bg-surface p-3 text-left shadow-card transition-all hover:-translate-y-0.5 hover:border-foreground/15 hover:shadow-pop focus-ring"
+      className="group flex aspect-square flex-col gap-2 rounded-md border border-border bg-surface p-3 text-left shadow-card transition-all hover:-translate-y-0.5 hover:border-foreground/15 hover:shadow-pop focus-ring"
     >
       <div className="flex items-start justify-between">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground/5 text-[11px] font-semibold text-foreground">

@@ -235,7 +235,7 @@ function Lane({
       ? deals.reduce((a, d) => a + (d.value ?? 0), 0)
       : 0;
   return (
-    <section className="flex min-h-[460px] flex-col gap-2 rounded-2xl border border-border bg-slate-100/70 p-2.5">
+    <section className="flex min-h-[460px] flex-col gap-2 rounded-lg border border-border bg-slate-100/70 p-2.5">
       <header className="flex items-center justify-between gap-2 px-1 pt-1">
         <div className="flex min-w-0 items-center gap-2">
           <span
@@ -293,7 +293,7 @@ function DealCardView({
   return (
     <div
       className={cn(
-        "group flex gap-2 rounded-xl border border-border bg-surface p-3 shadow-card transition-opacity",
+        "group flex gap-2 rounded-md border border-border bg-surface p-3 shadow-card transition-opacity",
         moving && "opacity-60",
       )}
     >

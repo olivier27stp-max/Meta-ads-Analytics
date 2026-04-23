@@ -278,7 +278,7 @@ export default function CalendarPage() {
                         return (
                           <span
                             key={e.id}
-                            className="flex flex-col overflow-hidden rounded-md border border-foreground/80 bg-surface text-[10.5px] font-medium text-foreground"
+                            className="flex flex-col overflow-hidden rounded-sm border border-foreground/80 bg-surface text-[10.5px] font-medium text-foreground"
                             title={`${e.hour} · ${e.title} · ${m?.name ?? ""}`}
                           >
                             {/* Colored bar at the top */}
